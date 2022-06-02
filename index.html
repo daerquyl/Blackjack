@@ -1,0 +1,213 @@
+<!doctype html>
+<html class="no-js" lang="">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="x-ua-compatible" content="ie=edge">
+        <title></title>
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <link rel="manifest" href="site.webmanifest">
+        <link rel="apple-touch-icon" href="icon.png">
+        <!-- Place favicon.ico in the root directory -->
+
+        <link rel="stylesheet" href="css/normalize.css">
+        <link rel="stylesheet" href="css/main.css">
+		
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+    </head>
+    <body>
+        <!--[if lte IE 9]>
+            <p class="browserupgrade">You are using an <strong>outdated</strong> browser. Please <a href="https://browsehappy.com/">upgrade your browser</a> to improve your experience and security.</p>
+        <![endif]-->
+
+        <!-- Add your site or application content here -->
+		<div class="container" id="container">
+			<section id="game_panel">
+				<div id="start_content">
+					<button id="start_button" class="btn btn-success btn-lg"> START PLAYING </button>
+					<audio id="welcome_audio" loop>
+					  <source src="audio/welcome_audio.wav" type="audio/wav">
+					</audio>
+					<audio id="start_audio">
+					  <source src="audio/start_audio.wav" type="audio/wav">
+					  <source src="audio/start_audio.mp3" type="audio/mpeg">
+					</audio>
+				</div>
+				<div id="game_content">
+					<div class="btn-group" id="game_controls">
+						<button class="btn btn-success btn-lg game_control" id="deal"> DEAL </button>
+						<button class="btn btn-warning btn-lg game_control" id="hit"> HIT </button>
+						<button class="btn btn-danger btn-lg game_control" id="stand"> STAND </button>
+						<audio id="card_audio">
+						  <source src="audio/deal_audio.wav" type="audio/wav">
+						</audio>
+					</div>
+					<p class="player_box" id="user_box"></p>
+					<p class="player_box" id="ia_box"></p>
+					<p id="win_box"></p>
+					<p id="score_box"></p>
+					<p id="indication_box" class='text-center'></p>
+					<audio id="win_audio">
+					  <source src="audio/win_audio.wav" type="audio/wav">
+					</audio>
+					<audio id="lose_audio">
+					  <source src="audio/lose_audio.wav" type="audio/wav">
+					</audio>
+				</div>			
+			</section>
+		</div>
+		
+        <script src="js/vendor/modernizr-3.5.0.min.js"></script>
+        <script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=" crossorigin="anonymous"></script>
+        <script>window.jQuery || document.write('<script src="js/vendor/jquery-3.2.1.min.js"><\/script>')</script>
+        <script src="js/plugins.js"></script>
+        <script src="js/main.js"></script>
+		<script>
+			$(document).ready(function(){
+			
+				//Play Welcome audio
+				document.getElementById("welcome_audio").play();
+				
+				//Disbale the controls and activate only "deal" control
+				$('.game_control').prop('disabled',true);
+				$('#deal').prop('disabled',false);
+				
+				//Game Start
+				$('#start_button').on('click',function(){
+				
+					//Play Start audio
+					document.getElementById("start_audio").play();
+					
+					//Set the game table (background)
+					$("#game_panel").css("background-image","url('img/blackjack_running.png')");
+					
+					//Change the start screen
+					$("#start_content").fadeOut();
+					$("#start_content").remove();
+					
+					//Show game table
+					$("#game_content").fadeIn();
+					
+					//Run the game
+					runGame();
+				});
+				
+				//Handles events durring the during and update game table display
+				function runGame(){
+				
+					//Create new game components
+					var gameComponents = (new GameComponentsFactory()).create();
+					
+					/*
+					Create game events handlers
+					*/
+					//Function that handle box(hands) update on the game display
+					var boxPanelUpdate = function(type){
+						var box_bloc = $('#user_box');
+						var playerType = 'User';
+						if(type != 'onUserBoxUpdate'){
+							var box_bloc = $('#ia_box');
+							var playerType = 'IA';
+						}	
+						box_bloc.html('');
+						var cards = gameComponents.getCards(playerType);
+						cards.forEach(function(card){
+							box_bloc.append("<img height='72' width='50' src='img/cards/"+card.name+".png' alt='"+card.name+"'> ");
+							document.getElementById("card_audio").play();
+						});
+					};	
+					//Registering handlers
+					gameComponents.on('onUserBoxUpdate',boxPanelUpdate);
+					gameComponents.on('onIABoxUpdate',boxPanelUpdate);
+					
+					//Function that handle score update on the game display
+					var scorePannelUpdate = function(_,components){
+						var userScore = components.userBox.Value;
+						var iaScore = components.iaBox.Value;
+						$('#score_box').text('');
+						$('#score_box').text('IA : '+ iaScore +' | U : '+ userScore);
+					}
+					//Registering handlers
+					gameComponents.on('onUserBoxUpdate',scorePannelUpdate);
+					gameComponents.on('onIABoxUpdate',scorePannelUpdate);
+					
+					//Setting chrono before automatic Deal
+					function stopChrono(chrono){
+						$('#indication_box').html('Hit or Stand ...');
+						clearInterval(chrono);
+					}
+					function launchChrono(){
+						var secondes = 16;
+						var launchAutomaticDeal = function(){
+							var printChrono = function(){
+								secondes--;
+								$('#indication_box').html('Waiting action ...<br /><span>'+secondes+'</span>');
+							}
+							printChrono();
+							if(secondes < 0){
+								$('#deal').trigger('click');
+								stopChrono(chrono);
+							}
+						}
+						var chrono = setInterval(launchAutomaticDeal,1000);
+						return chrono;
+					}
+					var chrono = launchChrono();
+					
+					//Launch Deal Action
+					$('#deal').on('click',function(){
+						stopChrono(chrono);
+						$('.game_control').prop('disabled', false);
+						$(this).prop('disabled', true);
+						checkWin(game.action('Deal'));
+					});
+					
+					//Launch Hit Action
+					$('#hit').on('click',function(){
+						checkWin(game.action('Hit'));
+					});
+					
+					//Launch Stand Action
+					$('#stand').on('click',function(){
+						$('#hit').prop('disabled', false);
+						checkWin(game.action('Stand'), true);
+					});
+					
+					//Function that Reset the players boxes (hands)
+					function resetGame(game){
+						game.initPart();
+						chrono = launchChrono();
+						$('#deal').prop('disabled',false);
+						$('#win_box').text('');
+					}
+					
+					//Function that check if the user win or not and display a win or lose message
+					function checkWin(checkDetails, end){
+						if(('end' in checkDetails && checkDetails.end) || end){
+							$('.game_control').prop('disabled',true);
+							if(checkDetails.userWin){
+								$('#win_box').text('YOU WIN');
+								document.getElementById("win_audio").play();
+							}else{
+								$('#win_box').text('YOU LOSE');
+								document.getElementById("lose_audio").play();
+							}
+							setTimeout(resetGame, 3000, game);
+						}
+					}
+					
+					//Setting Game
+					var game = new Game(gameComponents);
+				}
+
+			});
+		</script>
+        <!-- Google Analytics: change UA-XXXXX-Y to be your site's ID. -->
+        <script>
+            window.ga=function(){ga.q.push(arguments)};ga.q=[];ga.l=+new Date;
+            ga('create','UA-XXXXX-Y','auto');ga('send','pageview')
+        </script>
+        <script src="https://www.google-analytics.com/analytics.js" async defer></script>
+    </body>
+</html>
